@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -57,6 +58,12 @@ fun RobotVisionApp(modifier: Modifier = Modifier, viewModel: RobotVisionViewMode
     ) {
         val isLandscape = maxWidth >= 700.dp
 
+        LaunchedEffect(state.connectionStatus) {
+            if (state.connectionStatus == "ERROR") {
+                navController.navigate(ServerUnavailableRoute)
+            }
+        }
+
         NavHost(
             navController = navController,
             startDestination = SplashRoute
@@ -75,8 +82,6 @@ fun RobotVisionApp(modifier: Modifier = Modifier, viewModel: RobotVisionViewMode
                         "CameraRoute" -> navController.navigate(CameraRoute)
                         "MonitoringRoute" -> navController.navigate(MonitoringRoute)
                         "SettingsRoute" -> navController.navigate(SettingsRoute)
-                        "ConnectionStatesRoute" -> navController.navigate(ConnectionStatesRoute)
-                        "ErrorStatesRoute" -> navController.navigate(ErrorStatesRoute)
                     }
                 })
             }
@@ -101,7 +106,7 @@ fun RobotVisionApp(modifier: Modifier = Modifier, viewModel: RobotVisionViewMode
                 })
             }
             composable<SettingsRoute> {
-                SettingsScreen(isLandscape, onNavigate = { route ->
+                SettingsScreen(state, isLandscape, viewModel = viewModel, onNavigate = { route ->
                     when (route) {
                         "DashboardRoute" -> navController.navigate(DashboardRoute)
                         "CameraRoute" -> navController.navigate(CameraRoute)
@@ -110,11 +115,18 @@ fun RobotVisionApp(modifier: Modifier = Modifier, viewModel: RobotVisionViewMode
                     }
                 })
             }
-            composable<ConnectionStatesRoute> {
-                ConnectionStatesScreen(onBack = { navController.popBackStack() })
-            }
-            composable<ErrorStatesRoute> {
-                ErrorStatesScreen(onBack = { navController.popBackStack() })
+            composable<ServerUnavailableRoute> {
+                ServerUnavailableScreen(
+                    onRetry = {
+                        navController.popBackStack()
+                        viewModel.startStreaming()
+                    },
+                    onCheckSettings = {
+                        navController.navigate(SettingsRoute) {
+                            popUpTo<DashboardRoute>()
+                        }
+                    }
+                )
             }
         }
     }

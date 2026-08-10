@@ -18,7 +18,4 @@ object MonitoringRoute
 object SettingsRoute
 
 @Serializable
-object ConnectionStatesRoute
-
-@Serializable
-object ErrorStatesRoute
+object ServerUnavailableRoute

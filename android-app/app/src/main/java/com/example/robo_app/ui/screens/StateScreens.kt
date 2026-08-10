@@ -2,6 +2,7 @@ package com.example.robo_app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,32 +21,16 @@ import com.example.robo_app.ui.components.StatePage
 import com.example.robo_app.ui.theme.RvColors
 
 @Composable
-fun ConnectionStatesScreen(onBack: () -> Unit) {
-    StatePage(title = "7. CONNECTION\nSTATES", onBack = onBack) {
-        ConnectionStateCard("Connected", "Connected to server", "192.168.1.100:5000", RvColors.Green)
-        ConnectionStateCard("Connecting", "Connecting to server", "192.168.1.100:5000", RvColors.Blue)
-        ConnectionStateCard("Disconnected", "Not connected to server", "CONNECT", RvColors.Yellow)
-        ConnectionStateCard("Reconnecting", "Reconnecting...", "Attempt 2 / 5", RvColors.Purple)
-        ConnectionStateCard("Connection\nFailed", "Failed to connect to server", "RETRY", RvColors.RedBright)
-    }
-}
-
-@Composable
-fun ErrorStatesScreen(onBack: () -> Unit) {
-    StatePage(title = "Error States", onBack = onBack) {
-        ErrorCard(
-            title = "Camera Permission\nRequired",
-            message = "Camera permission is required to use this application.",
-            primary = "GRANT PERMISSION",
-            secondary = "GO TO SETTINGS",
-            accent = RvColors.GreenLight
-        )
+fun ServerUnavailableScreen(onRetry: () -> Unit, onCheckSettings: () -> Unit) {
+    StatePage(title = "Server Unavailable", onBack = { onRetry() }) {
         ErrorCard(
             title = "Server Unavailable",
             message = "Unable to reach the server. Please check the server IP and try again.",
             primary = "RETRY",
             secondary = "CHECK SETTINGS",
-            accent = RvColors.RedBright
+            accent = RvColors.RedBright,
+            onPrimaryClick = onRetry,
+            onSecondaryClick = onCheckSettings
         )
     }
 }
@@ -70,7 +55,15 @@ fun ConnectionStateCard(title: String, message: String, detail: String, color: C
 }
 
 @Composable
-fun ErrorCard(title: String, message: String, primary: String, secondary: String, accent: Color) {
+fun ErrorCard(
+    title: String, 
+    message: String, 
+    primary: String, 
+    secondary: String, 
+    accent: Color,
+    onPrimaryClick: () -> Unit = {},
+    onSecondaryClick: () -> Unit = {}
+) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF121C22)).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -83,10 +76,10 @@ fun ErrorCard(title: String, message: String, primary: String, secondary: String
         Spacer(Modifier.height(18.dp))
         Text(message, color = RvColors.Muted, fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 24.sp)
         Spacer(Modifier.height(40.dp))
-        Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.dp)).background(accent), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.dp)).background(accent).clickable { onPrimaryClick() }, contentAlignment = Alignment.Center) {
             Text(primary, color = if (accent == RvColors.GreenLight) Color(0xFF121C22) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(14.dp))
-        SecondaryButton(secondary, Modifier.fillMaxWidth().height(46.dp))
+        SecondaryButton(secondary, Modifier.fillMaxWidth().height(46.dp)) { onSecondaryClick() }
     }
 }

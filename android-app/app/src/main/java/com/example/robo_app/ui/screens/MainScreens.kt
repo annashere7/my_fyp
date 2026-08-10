@@ -13,6 +13,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
@@ -54,14 +58,13 @@ fun DashboardScreen(
             StreamActionPanel(
                 compact = false,
                 isStreaming = state.connectionStatus == "CONNECTED",
+                isPaused = state.isPaused,
                 onStart = { viewModel.startStreaming() },
-                onStop = { viewModel.stopStreaming() }
+                onStop = { viewModel.stopStreaming() },
+                onPause = { viewModel.togglePause() },
+                onSwitchCamera = { viewModel.switchCamera() }
             )
             ConnectionPerformanceRow(state)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                SecondaryButton("CONNECTION STATES", Modifier.weight(1f)) { onNavigate("ConnectionStatesRoute") }
-                SecondaryButton("ERROR STATES", Modifier.weight(1f)) { onNavigate("ErrorStatesRoute") }
-            }
         }
     }
 }
@@ -89,8 +92,8 @@ fun CameraScreen(
                         onStart = { viewModel.startStreaming() },
                         onStop = { viewModel.stopStreaming() }
                     )
-                    SecondaryButton("Pause Stream", Modifier.fillMaxWidth())
-                    SecondaryButton("Switch Camera", Modifier.fillMaxWidth())
+                    SecondaryButton(if (state.isPaused) "Resume Stream" else "Pause Stream", Modifier.fillMaxWidth()) { viewModel.togglePause() }
+                    SecondaryButton("Switch Camera", Modifier.fillMaxWidth()) { viewModel.switchCamera() }
                     TelemetryGrid(state)
                 }
             }
@@ -108,8 +111,8 @@ fun CameraScreen(
                     onStart = { viewModel.startStreaming() },
                     onStop = { viewModel.stopStreaming() }
                 )
-                SecondaryButton("Pause Stream", Modifier.fillMaxWidth())
-                SecondaryButton("Switch Camera", Modifier.fillMaxWidth())
+                SecondaryButton(if (state.isPaused) "Resume Stream" else "Pause Stream", Modifier.fillMaxWidth()) { viewModel.togglePause() }
+                SecondaryButton("Switch Camera", Modifier.fillMaxWidth()) { viewModel.switchCamera() }
             }
         }
     }
@@ -133,26 +136,73 @@ fun MonitoringScreen(isLandscape: Boolean, onNavigate: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(isLandscape: Boolean, onNavigate: (String) -> Unit) {
+fun SettingsScreen(state: StreamState, isLandscape: Boolean, viewModel: RobotVisionViewModel, onNavigate: (String) -> Unit) {
+    var showIpDialog by remember { mutableStateOf(false) }
+    var showPortDialog by remember { mutableStateOf(false) }
+    var showFpsDialog by remember { mutableStateOf(false) }
+    var tempInput by remember { mutableStateOf("") }
+
     AppChrome(title = "Settings", activeRoute = "SettingsRoute", onNavigate = onNavigate) {
         ResponsiveTwoPane(isLandscape = isLandscape) {
             SettingsGroup("SERVER SETTINGS") {
-                SettingsRow("Server IP Address", "192.168.1.100")
-                SettingsRow("Port", "5000")
+                SettingsRow("Server IP Address", state.serverIp) { 
+                    tempInput = state.serverIp; showIpDialog = true 
+                }
+                SettingsRow("Port", state.serverPort) {
+                    tempInput = state.serverPort; showPortDialog = true
+                }
             }
             SettingsGroup("STREAM SETTINGS") {
-                SettingsRow("Resolution", "1280 x 720 (HD)")
-                SettingsRow("Target FPS", "20 FPS")
-                SettingsRow("Streaming Quality", "Medium")
-                SettingsRow("Protocol", "WebSocket")
+                SettingsRow("Resolution", "1280 x 720 (HD)") {}
+                SettingsRow("Target FPS", "${state.targetFps} FPS") {
+                    tempInput = state.targetFps.toString(); showFpsDialog = true
+                }
+                SettingsRow("Streaming Quality", "Medium") {}
+                SettingsRow("Protocol", "WebSocket") {}
             }
             SettingsGroup("CAMERA SETTINGS") {
-                SettingsRow("Camera", "Rear Camera")
-                SettingsRow("Focus Mode", "Auto")
+                SettingsRow("Camera", if (state.isFrontCamera) "Front Camera" else "Rear Camera") { viewModel.switchCamera() }
+                SettingsRow("Focus Mode", "Auto") {}
                 TorchRow()
             }
         }
+    }
+
+    if (showIpDialog) {
+        AlertDialog(
+            onDismissRequest = { showIpDialog = false },
+            title = { Text("Server IP Address") },
+            text = { OutlinedTextField(value = tempInput, onValueChange = { tempInput = it }) },
+            confirmButton = { TextButton(onClick = { viewModel.updateServerIp(tempInput); showIpDialog = false }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { showIpDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showPortDialog) {
+        AlertDialog(
+            onDismissRequest = { showPortDialog = false },
+            title = { Text("Server Port") },
+            text = { OutlinedTextField(value = tempInput, onValueChange = { tempInput = it }) },
+            confirmButton = { TextButton(onClick = { viewModel.updateServerPort(tempInput); showPortDialog = false }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { showPortDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showFpsDialog) {
+        AlertDialog(
+            onDismissRequest = { showFpsDialog = false },
+            title = { Text("Target FPS") },
+            text = { OutlinedTextField(value = tempInput, onValueChange = { tempInput = it }) },
+            confirmButton = { 
+                TextButton(onClick = { 
+                    tempInput.toIntOrNull()?.let { viewModel.updateTargetFps(it) }
+                    showFpsDialog = false 
+                }) { Text("Save") } 
+            },
+            dismissButton = { TextButton(onClick = { showFpsDialog = false }) { Text("Cancel") } }
+        )
     }
 }
 
@@ -187,7 +237,8 @@ private fun CameraFeedCard(
         if (hasCameraPermission) {
             CameraPreviewArea(
                 modifier = Modifier.fillMaxSize(),
-                analyzer = viewModel.frameAnalyzer
+                analyzer = viewModel.frameAnalyzer,
+                isFrontCamera = state.isFrontCamera
             )
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -249,7 +300,15 @@ private fun TelemetryMetric(label: String, value: String, unit: String, color: C
 }
 
 @Composable
-private fun StreamActionPanel(compact: Boolean, isStreaming: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
+private fun StreamActionPanel(
+    compact: Boolean, 
+    isStreaming: Boolean, 
+    isPaused: Boolean,
+    onStart: () -> Unit, 
+    onStop: () -> Unit,
+    onPause: () -> Unit,
+    onSwitchCamera: () -> Unit
+) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (compact) {
             StopCircleButton(isStreaming, onStart, onStop)
@@ -257,8 +316,8 @@ private fun StreamActionPanel(compact: Boolean, isStreaming: Boolean, onStart: (
             RedActionButton(isStreaming, onStart, onStop)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SecondaryButton("PAUSE STREAM", Modifier.weight(1f))
-            SecondaryButton("SWITCH CAMERA", Modifier.weight(1f))
+            SecondaryButton(if (isPaused) "RESUME STREAM" else "PAUSE STREAM", Modifier.weight(1f)) { onPause() }
+            SecondaryButton("SWITCH CAMERA", Modifier.weight(1f)) { onSwitchCamera() }
         }
     }
 }
@@ -414,8 +473,8 @@ private fun SettingsGroup(title: String, rows: @Composable ColumnScope.() -> Uni
 }
 
 @Composable
-private fun SettingsRow(label: String, value: String) {
-    Column(Modifier.fillMaxWidth().border(0.5.dp, Color(0xFF334155)).padding(16.dp)) {
+private fun SettingsRow(label: String, value: String, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().border(0.5.dp, Color(0xFF334155)).clickable(onClick = onClick).padding(16.dp)) {
         Text(label, color = Color(0xFFF8FAFC), fontSize = 14.sp)
         Text("$value  >", color = Color(0xFF94A3B8), fontSize = 14.sp)
     }

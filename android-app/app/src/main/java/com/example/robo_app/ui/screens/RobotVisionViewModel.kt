@@ -23,30 +23,50 @@ class RobotVisionViewModel(application: Application) : AndroidViewModel(applicat
     val uiState: StateFlow<StreamState> = _uiState.asStateFlow()
     
     private var isStreaming = false
+    private val _isPaused = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
             combine(
-                settingsRepo.serverIpFlow,
-                settingsRepo.serverPortFlow,
-                settingsRepo.targetFpsFlow,
-                streamingClient.connectionState
-            ) { ip, port, fps, connState ->
-                StateUpdate(ip, port, fps, connState)
+                combine(
+                    settingsRepo.serverIpFlow,
+                    settingsRepo.serverPortFlow,
+                    settingsRepo.targetFpsFlow,
+                    ::Triple
+                ),
+                combine(
+                    settingsRepo.cameraFacingFlow,
+                    streamingClient.connectionState,
+                    _isPaused,
+                    ::Triple
+                )
+            ) { (ip, port, fps), (facing, connState, paused) ->
+                StateUpdate(ip, port, fps, facing, connState, paused)
             }.collect { update ->
                 _uiState.value = _uiState.value.copy(
                     endpoint = "${update.ip}:${update.port}",
                     targetFps = update.fps,
-                    connectionStatus = update.connState.name
+                    connectionStatus = update.connState.name,
+                    isFrontCamera = update.facing == "Front",
+                    isPaused = update.paused,
+                    serverIp = update.ip,
+                    serverPort = update.port
                 )
             }
         }
     }
 
-    private data class StateUpdate(val ip: String, val port: String, val fps: Int, val connState: ConnectionState)
+    private data class StateUpdate(
+        val ip: String, 
+        val port: String, 
+        val fps: Int, 
+        val facing: String,
+        val connState: ConnectionState,
+        val paused: Boolean
+    )
 
     val frameAnalyzer = FrameAnalyzer { jpegBytes, width, height, rotation ->
-        if (isStreaming) {
+        if (isStreaming && !_isPaused.value) {
             viewModelScope.launch {
                 streamingClient.sendFrame(jpegBytes, width, height, rotation)
                 // Update FPS and other telemetry heuristically here
@@ -63,18 +83,47 @@ class RobotVisionViewModel(application: Application) : AndroidViewModel(applicat
     fun startStreaming() {
         if (isStreaming) return
         isStreaming = true
+        _isPaused.value = false
         viewModelScope.launch {
-            val ip = settingsRepo.serverIpFlow.first() // Normally we'd use first() but keeping simple
-            val port = 5000 // In reality parse from settings
-            streamingClient.connect("192.168.1.100", 5000)
+            val ip = settingsRepo.serverIpFlow.first() 
+            val portStr = settingsRepo.serverPortFlow.first()
+            val port = portStr.toIntOrNull() ?: 5000
+            streamingClient.connect(if (ip.isBlank()) "192.168.1.100" else ip, port)
         }
     }
 
     fun stopStreaming() {
         if (!isStreaming) return
         isStreaming = false
+        _isPaused.value = false
         viewModelScope.launch {
             streamingClient.disconnect()
         }
+    }
+
+    fun togglePause() {
+        if (isStreaming) {
+            _isPaused.value = !_isPaused.value
+        }
+    }
+
+    fun switchCamera() {
+        viewModelScope.launch {
+            val currentFacing = settingsRepo.cameraFacingFlow.first()
+            val newFacing = if (currentFacing == "Front") "Rear" else "Front"
+            settingsRepo.updateCameraFacing(newFacing)
+        }
+    }
+
+    fun updateServerIp(ip: String) {
+        viewModelScope.launch { settingsRepo.updateServerIp(ip) }
+    }
+
+    fun updateServerPort(port: String) {
+        viewModelScope.launch { settingsRepo.updateServerPort(port) }
+    }
+
+    fun updateTargetFps(fps: Int) {
+        viewModelScope.launch { settingsRepo.updateTargetFps(fps) }
     }
 }

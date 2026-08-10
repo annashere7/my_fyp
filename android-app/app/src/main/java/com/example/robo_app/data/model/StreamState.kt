@@ -8,5 +8,9 @@ data class StreamState(
     val latencyMs: String = "0",
     val targetFps: Int = 20,
     val connectionStatus: String = "Disconnected",
-    val endpoint: String = "N/A"
+    val endpoint: String = "N/A",
+    val isFrontCamera: Boolean = false,
+    val isPaused: Boolean = false,
+    val serverIp: String = "192.168.1.100",
+    val serverPort: String = "5000"
 )

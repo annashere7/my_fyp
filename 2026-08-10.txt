@@ -1,0 +1,14 @@
+Daily Progress Tracker: 2026-08-10
+
+Functionalities & Objectives Worked On Today:
+
+- Backend Architecture Setup: Created the foundational structure for the AI backend in the 'ai/' directory.
+- WebSocket Protocol Implementation: Built a basic FastAPI backend that accepts WebSocket connections at '/stream'.
+- Data Ingestion Capability: Added functionality to receive JSON metadata frames followed by binary image frames.
+- Client-Server Acknowledgement: Implemented the server-side ACK response mechanism sending 'ackFrameId' and processing status to allow for latency calculations.
+- Android App Validation: Validated that the updated Android app codebase compiles and can successfully integrate with the new backend.
+- Dependencies Setup: Configured 'requirements.txt' with essential packages ('fastapi', 'uvicorn', 'websockets') for the Python backend.
+- Interactive Settings Integration: Wired up the Settings Screen in the Android app to dynamically read and update Server IP, Port, and Target FPS using Jetpack DataStore and 'StateFlow'.
+- UI Bug Fixes & Wiring: Connected the "Switch Camera" and "Pause Stream" buttons across the application to function correctly and update the view model state.
+- Project Restructuring: Created a dedicated 'backend/' directory and migrated the FastAPI server logic out of the 'ai/' folder, reserving 'ai/' for future machine learning models like MiDaS.
+- Automated Error Flow: Deleted static mock error screens and implemented a real-time 'LaunchedEffect' listener that automatically navigates to a functional "Server Unavailable" screen when WebSocket connections fail.
